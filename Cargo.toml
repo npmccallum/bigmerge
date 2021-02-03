@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "contractmgr",
+    "franca",
+	"keepmgr",
+    "koine",
+	"client",
+]
