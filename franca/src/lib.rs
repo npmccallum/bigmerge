@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+use serde::{Serialize, Deserialize};
+use uuid::Uuid;
+
+pub use koine::{Backend, Contract};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Keep {
+    pub uuid: Uuid,
+    pub contract: Contract,
 }
