@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#![deny(clippy::all)]
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

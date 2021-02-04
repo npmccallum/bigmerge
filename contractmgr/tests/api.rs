@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+
+#![deny(clippy::all)]
+
 use std::collections::BTreeMap;
 
 use franca::{Backend, Contract, Keep};

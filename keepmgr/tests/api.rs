@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+
+#![deny(clippy::all)]
+
 use koine::{Backend, Contract};
 
 use warp::http::header::{HeaderValue, CONTENT_TYPE};

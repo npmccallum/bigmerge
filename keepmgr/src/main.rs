@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#![deny(clippy::all)]
+
 use koine::{Backend, Contract};
 
 use serde::Serialize;
