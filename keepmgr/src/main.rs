@@ -1,9 +1,51 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use koine::{Backend, Contract};
+
+use serde::Serialize;
 use structopt::StructOpt;
 use tokio::net::{TcpListener, UnixListener};
 use tokio_stream::wrappers::{TcpListenerStream, UnixListenerStream};
+use uuid::Uuid;
+use warp::http::header::CONTENT_TYPE;
+use warp::http::{Response, StatusCode};
 use warp::Filter;
+
+const CONTRACTS: &[Contract] = &[
+    Contract {
+        uuid: Uuid::from_u128(0xe6234733_513a_4883_981a_bfa972fa706b),
+        backend: Backend::Nil,
+    },
+    Contract {
+        uuid: Uuid::from_u128(0x0afa438e_acaa_4158_9518_ad59256def34),
+        backend: Backend::Kvm,
+    },
+    Contract {
+        uuid: Uuid::from_u128(0x31a41b53_cb9e_447b_bfa2_bfb8e6e42ff9),
+        backend: Backend::Sev,
+    },
+    Contract {
+        uuid: Uuid::from_u128(0xea392851_3435_42d3_a4ad_c4e5e5c6c4c6),
+        backend: Backend::Sgx,
+    },
+];
+
+trait ContractExt {
+    fn is_supported(&self) -> bool;
+}
+
+impl ContractExt for Contract {
+    fn is_supported(&self) -> bool {
+        use std::path::Path;
+
+        match self.backend {
+            Backend::Nil => true,
+            Backend::Kvm => Path::new("/dev/kvm").exists(),
+            Backend::Sev => Path::new("/dev/sev").exists(),
+            Backend::Sgx => Path::new("/dev/sgx_enclave").exists(),
+        }
+    }
+}
 
 #[derive(Debug)]
 enum Listener {
@@ -43,16 +85,63 @@ struct Options {
     listen: Listener,
 }
 
+fn cborize<T: Serialize>(item: &T) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    ciborium::ser::into_writer(&item, &mut buffer).unwrap();
+    buffer
+}
+
+fn error(code: StatusCode) -> Response<Vec<u8>> {
+    Response::builder().status(code).body(Vec::new()).unwrap()
+}
+
 async fn serve<I>(incoming: I) -> tokio::io::Result<()>
 where
     I: futures_core::stream::TryStream + Send,
     I::Ok: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + 'static + Unpin,
     I::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    // GET /hello/warp => 200 OK with body "Hello, warp!"
-    let hello = warp::path!("hello" / String).map(|name| format!("Hello, {}!", name));
+    // Client is requesting details of all contracts.
+    let get_contracts = warp::path!("contracts")
+        .and(warp::filters::method::get())
+        .map(|| {
+            // TODO: fetch contracts from the contractmgr
+            let contracts: Vec<Contract> = CONTRACTS
+                .iter()
+                .cloned()
+                .filter(Contract::is_supported)
+                .collect();
 
-    warp::serve(hello).run_incoming(incoming).await;
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/cbor")
+                .body(cborize(&contracts))
+                .unwrap()
+        });
+
+    // Client is requesting details of a single contract.
+    let get_contracts_uuid = warp::path!("contracts" / Uuid)
+        .and(warp::filters::method::get())
+        .map(|cuuid| {
+            // TODO: fetch contracts from the contractmgr
+            let contracts: Vec<Contract> = CONTRACTS
+                .iter()
+                .cloned()
+                .filter(Contract::is_supported)
+                .collect();
+
+            match contracts.iter().find(|c| c.uuid == cuuid) {
+                None => error(StatusCode::NOT_FOUND),
+                Some(contract) => Response::builder()
+                    .status(StatusCode::OK)
+                    .header(CONTENT_TYPE, "application/cbor")
+                    .body(cborize(&contract))
+                    .unwrap(),
+            }
+        });
+
+    let routes = get_contracts.or(get_contracts_uuid);
+    warp::serve(routes).run_incoming(incoming).await;
     Ok(())
 }
 
