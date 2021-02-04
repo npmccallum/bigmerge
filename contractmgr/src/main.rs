@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use franca::{Backend, Contract};
+use franca::{Backend, Contract, Keep};
 
+use std::collections::HashMap;
+use std::sync::RwLock;
+
+use once_cell::sync::Lazy;
 use serde::Serialize;
 use structopt::StructOpt;
 use tokio::net::{TcpListener, UnixListener};
 use tokio_stream::wrappers::{TcpListenerStream, UnixListenerStream};
 use uuid::Uuid;
-use warp::http::header::CONTENT_TYPE;
+use warp::http::header::{CONTENT_TYPE, LOCATION};
 use warp::http::{Response, StatusCode};
 use warp::Filter;
 
@@ -68,6 +72,8 @@ const CONTRACTS: &[Contract] = &[
     },
 ];
 
+static KEEPS: Lazy<RwLock<HashMap<Uuid, Keep>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
 fn cborize<T: Serialize>(item: &T) -> Vec<u8> {
     let mut buffer = Vec::new();
     ciborium::ser::into_writer(&item, &mut buffer).unwrap();
@@ -107,8 +113,69 @@ where
                 .unwrap(),
         });
 
-    let routes = get_contracts.or(get_contracts_uuid);
-    warp::serve(routes).run_incoming(incoming).await;
+    // Client is attempting to claim a contract.
+    let post_contracts_uuid = warp::path!("contracts" / Uuid)
+        .and(warp::filters::method::post())
+        .map(|cuuid| match CONTRACTS.iter().find(|c| c.uuid == cuuid) {
+            None => error(StatusCode::NOT_FOUND),
+            Some(contract) => {
+                let kuuid = Uuid::new_v4();
+                let keep = Keep {
+                    uuid: kuuid,
+                    contract: contract.clone(),
+                };
+
+                KEEPS.write().unwrap().insert(kuuid, keep.clone());
+
+                Response::builder()
+                    .status(StatusCode::CREATED)
+                    .header(LOCATION, format!("/keeps/{}", kuuid))
+                    .header(CONTENT_TYPE, "application/cbor")
+                    .body(cborize(&keep))
+                    .unwrap()
+            }
+        });
+
+    // Client is requesting details for all keeps.
+    let get_keeps = warp::path!("keeps")
+        .and(warp::filters::method::get())
+        .map(|| {
+            let keeps: Vec<Keep> = KEEPS.read().unwrap().values().cloned().collect();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/cbor")
+                .body(cborize(&keeps))
+                .unwrap()
+        });
+
+    // Client is requesting details of a single keep.
+    let get_keeps_uuid = warp::path!("keeps" / Uuid)
+        .and(warp::filters::method::get())
+        .map(|kuuid| match KEEPS.write().unwrap().get(&kuuid) {
+            None => error(StatusCode::NOT_FOUND),
+            Some(keep) => Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/cbor")
+                .body(cborize(&keep))
+                .unwrap(),
+        });
+
+    // Client is requesting destruction of a single keep.
+    let delete_keeps_uuid = warp::path!("keeps" / Uuid)
+        .and(warp::filters::method::delete())
+        .map(|kuuid| match KEEPS.write().unwrap().remove(&kuuid) {
+            Some(..) => StatusCode::OK,
+            None => StatusCode::NOT_FOUND,
+        });
+
+    let routes = get_contracts
+        .or(get_contracts_uuid)
+        .or(post_contracts_uuid)
+        .or(get_keeps)
+        .or(get_keeps_uuid)
+        .or(delete_keeps_uuid);
+
+    warp::serve(routes).serve_incoming(incoming).await;
     Ok(())
 }
 
