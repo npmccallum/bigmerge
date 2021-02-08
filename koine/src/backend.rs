@@ -28,15 +28,14 @@ impl std::str::FromStr for Backend {
     }
 }
 
-impl ToString for Backend {
-    #[inline]
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
+impl std::fmt::Display for Backend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
 impl Backend {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match *self {
             Backend::Nil => "nil",
             Backend::Sev => "sev",
