@@ -84,6 +84,7 @@ impl std::str::FromStr for Listener {
 #[structopt(name = "keepmgr", about = "Manages keeps.")]
 struct Options {
     /// The listening socket address or fd
+    #[structopt(default_value = "[::]:3030")]
     listen: Listener,
 }
 
