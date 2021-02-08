@@ -6,3 +6,6 @@ members = [
     "koine",
 	"client",
 ]
+
+[patch.crates-io]
+reqwest = { git = 'https://github.com/npmccallum/reqwest', branch = "patch" }
