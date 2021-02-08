@@ -61,7 +61,7 @@ async fn get_contracts() {
     let bytes = response.bytes().await.unwrap();
     let contracts: Vec<Contract> = ciborium::de::from_reader(&bytes[..]).unwrap();
     let backends: Vec<Backend> = contracts.into_iter().map(|c| c.backend).collect();
-    assert!(backends.len() > 0);
+    assert!(!backends.is_empty());
 }
 
 #[tokio::test]
