@@ -1,0 +1,33 @@
+msc {
+    client, keepmgr, contractmgr;
+
+    keepmgr=>contractmgr [label = "GET /contracts"];
+    contractmgr>>keepmgr [label = "contract"];
+    client=>keepmgr [label = "GET /contracts"];
+    keepmgr>>client [label = "contracts"];
+
+    client abox client [label = "Chooses acceptable contract"];
+    
+    keepmgr note keepmgr [label = "NOTE - we have a problem with synchronous calls here options below"];
+
+    keepmgr rbox keepmgr [label = "Option 1 (synchronous)", textbgcolour="#7fff7f", textcolour="black"];
+    client=>keepmgr [label = "POST /contracts/uuid"];
+    keepmgr abox keepmgr [label = "creates keep"];
+    keepmgr=>contractmgr [label = "POST /contracts/uuid)"];
+    contractmgr>>keepmgr [label = "kuuid"];
+    keepmgr>>client [label = "kuuid"];
+    
+    keepmgr rbox keepmgr [label = "Option 2 (asynchronous)", textbgcolour="#7fff7f", textcolour="black"];
+    client=>keepmgr [label = "POST /contracts/uuid"];
+    keepmgr>>client [label = "nonce"];
+    client=>keepmgr [label = "GET keep/nonce"];
+    keepmgr>>client [label = "false"];
+    keepmgr abox keepmgr [label = "creates keep"];
+    client=>keepmgr [label = "GET keep/nonce"];
+    keepmgr>>client [label = "false"];
+    keepmgr=>contractmgr [label = "POST /contracts/uuid)"];
+    contractmgr>>keepmgr [label = "kuuid"];
+    client=>keepmgr [label = "GET keep/nonce"];
+    keepmgr>>client [label = "kuuid"];
+
+}
